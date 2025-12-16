@@ -2,6 +2,12 @@
 // admin.php - Admin Dashboard for Hospital Profile Management
 session_start();
 
+// ===== Authentication Check =====
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    header('Location: login.php');
+    exit;
+}
+
 // Load DB config
 require_once 'db_config.php';
 $pgConn = get_db_connection();
@@ -100,8 +106,17 @@ $stats = pg_fetch_assoc($statsResult);
                 </div>
             </div>
             <div class="flex items-center gap-4">
+                <span class="text-gray-400 text-sm hidden sm:inline">
+                    Welcome, <span class="text-white font-medium"><?= htmlspecialchars($_SESSION['admin_username'] ?? 'Admin') ?></span>
+                </span>
                 <a href="index.php" class="btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
                     + New Submission
+                </a>
+                <a href="logout.php" class="btn px-4 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg text-sm font-medium flex items-center gap-2 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    </svg>
+                    Logout
                 </a>
             </div>
         </div>
@@ -212,55 +227,89 @@ $stats = pg_fetch_assoc($statsResult);
                                         <div class="flex items-center justify-end gap-2">
                                             <!-- View Details -->
                                             <a href="detail.php?id=<?= $h['id'] ?>" 
-                                               class="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition"
+                                               class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 rounded-lg transition text-sm font-medium"
                                                title="View Details">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                                 </svg>
+                                                <span>View</span>
                                             </a>
                                             
-                                            <!-- Status Actions Dropdown -->
+                                            <!-- Approve Button -->
+                                            <?php if ($h['status'] !== 'approved'): ?>
+                                                <form method="POST" class="inline">
+                                                    <input type="hidden" name="id" value="<?= $h['id'] ?>">
+                                                    <input type="hidden" name="action" value="approve">
+                                                    <button type="submit" 
+                                                        class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/20 text-green-400 hover:bg-green-500/30 rounded-lg transition text-sm font-medium"
+                                                        title="Approve this submission">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                                        </svg>
+                                                        <span>Approve</span>
+                                                    </button>
+                                                </form>
+                                            <?php else: ?>
+                                                <span class="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500/30 text-green-300 rounded-lg text-sm font-medium">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                                    </svg>
+                                                    <span>Approved</span>
+                                                </span>
+                                            <?php endif; ?>
+                                            
+                                            <!-- Reject Button -->
+                                            <?php if ($h['status'] !== 'rejected'): ?>
+                                                <form method="POST" class="inline">
+                                                    <input type="hidden" name="id" value="<?= $h['id'] ?>">
+                                                    <input type="hidden" name="action" value="reject">
+                                                    <button type="submit" 
+                                                        class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg transition text-sm font-medium"
+                                                        title="Reject this submission">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                        </svg>
+                                                        <span>Reject</span>
+                                                    </button>
+                                                </form>
+                                            <?php else: ?>
+                                                <span class="inline-flex items-center gap-1 px-3 py-1.5 bg-red-500/30 text-red-300 rounded-lg text-sm font-medium">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                    <span>Rejected</span>
+                                                </span>
+                                            <?php endif; ?>
+                                            
+                                            <!-- More Actions Dropdown -->
                                             <div class="dropdown relative">
-                                                <button class="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition">
+                                                <button class="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition" title="More actions">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
                                                     </svg>
                                                 </button>
                                                 <div class="dropdown-content absolute right-0 top-full mt-1 w-40 glass rounded-lg overflow-hidden z-10">
-                                                    <?php if ($h['status'] !== 'approved'): ?>
-                                                        <form method="POST" class="block">
-                                                            <input type="hidden" name="id" value="<?= $h['id'] ?>">
-                                                            <input type="hidden" name="action" value="approve">
-                                                            <button type="submit" class="w-full px-4 py-2 text-left text-green-400 hover:bg-white/10 text-sm">
-                                                                ✓ Approve
-                                                            </button>
-                                                        </form>
-                                                    <?php endif; ?>
-                                                    <?php if ($h['status'] !== 'rejected'): ?>
-                                                        <form method="POST" class="block">
-                                                            <input type="hidden" name="id" value="<?= $h['id'] ?>">
-                                                            <input type="hidden" name="action" value="reject">
-                                                            <button type="submit" class="w-full px-4 py-2 text-left text-red-400 hover:bg-white/10 text-sm">
-                                                                ✗ Reject
-                                                            </button>
-                                                        </form>
-                                                    <?php endif; ?>
                                                     <?php if ($h['status'] !== 'pending'): ?>
                                                         <form method="POST" class="block">
                                                             <input type="hidden" name="id" value="<?= $h['id'] ?>">
                                                             <input type="hidden" name="action" value="pending">
-                                                            <button type="submit" class="w-full px-4 py-2 text-left text-yellow-400 hover:bg-white/10 text-sm">
-                                                                ↺ Set Pending
+                                                            <button type="submit" class="w-full px-4 py-2 text-left text-yellow-400 hover:bg-white/10 text-sm flex items-center gap-2">
+                                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                                                </svg>
+                                                                Set Pending
                                                             </button>
                                                         </form>
                                                     <?php endif; ?>
-                                                    <hr class="border-white/10">
-                                                    <form method="POST" onsubmit="return confirm('Are you sure you want to delete this hospital?')">
+                                                    <form method="POST" onsubmit="return confirm('Are you sure you want to delete this hospital? This action cannot be undone.')">
                                                         <input type="hidden" name="id" value="<?= $h['id'] ?>">
                                                         <input type="hidden" name="action" value="delete">
-                                                        <button type="submit" class="w-full px-4 py-2 text-left text-red-500 hover:bg-white/10 text-sm">
-                                                            🗑 Delete
+                                                        <button type="submit" class="w-full px-4 py-2 text-left text-red-500 hover:bg-red-500/20 text-sm flex items-center gap-2">
+                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                            </svg>
+                                                            Delete
                                                         </button>
                                                     </form>
                                                 </div>

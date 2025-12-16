@@ -15,6 +15,27 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentTab = 0;
     const totalTabs = 5;
 
+    // ===== Helper: Get Image Dimensions =====
+    function getImageDimensions(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    resolve({ width: img.width, height: img.height });
+                };
+                img.onerror = () => {
+                    reject(new Error('Failed to load image'));
+                };
+                img.src = e.target.result;
+            };
+            reader.onerror = () => {
+                reject(new Error('Failed to read file'));
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
     // ===== Tab Navigation =====
     const tabs = document.querySelectorAll('.tab');
     const panels = document.querySelectorAll('.tab-panel');
@@ -396,10 +417,12 @@ document.addEventListener('DOMContentLoaded', () => {
             div.innerHTML = `
                 <button type="button" onclick="removeDoctor(${index})" class="remove-btn">×</button>
                 <div class="flex items-center gap-4 mb-4">
-                    <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-200 relative group">
+                    <div id="doctor-photo-${index}" class="doctor-photo-container w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-200 relative group">
                         ${doc.photoUrl 
                             ? `<img src="${doc.photoUrl}" class="w-full h-full object-cover">` 
-                            : `<svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>`
+                            : doc.photoPreview 
+                                ? `<img src="${doc.photoPreview}" class="w-full h-full object-cover"><span class="absolute bottom-0 left-0 right-0 bg-blue-500 text-white text-[8px] text-center py-0.5">Pending</span>`
+                                : `<svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>`
                         }
                         <label class="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                             <span class="text-white text-xs text-center">Change Photo</span>
@@ -514,55 +537,86 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!input.files || !input.files[0]) return;
         
         const file = input.files[0];
-        const formData = new FormData();
-        formData.append('file', file);
         
-        // Show loading state
-        showToast('Uploading photo...', 'success');
+        // ===== Comprehensive Image Validation =====
         
+        // 1. Validate file extension
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        const fileName = file.name.toLowerCase();
+        const fileExtension = fileName.split('.').pop();
+        if (!allowedExtensions.includes(fileExtension)) {
+            showToast(`Invalid file format. Allowed: ${allowedExtensions.join(', ').toUpperCase()}`, 'error');
+            input.value = ''; // Clear the input
+            return;
+        }
+        
+        // 2. Validate MIME type
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (!allowedMimeTypes.includes(file.type)) {
+            showToast('Invalid image type. Please select a JPG, PNG, GIF, or WEBP image.', 'error');
+            input.value = '';
+            return;
+        }
+        
+        // 3. Validate file size (max 5MB)
+        const maxSizeMB = 5;
+        const maxSizeBytes = maxSizeMB * 1024 * 1024;
+        if (file.size > maxSizeBytes) {
+            const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            showToast(`Image too large (${fileSizeMB}MB). Maximum size is ${maxSizeMB}MB.`, 'error');
+            input.value = '';
+            return;
+        }
+        
+        // 4. Validate minimum file size (at least 1KB - to avoid empty/corrupt files)
+        if (file.size < 1024) {
+            showToast('Image file appears to be empty or corrupted.', 'error');
+            input.value = '';
+            return;
+        }
+        
+        // Find the doctor photo container using unique ID
+        const photoContainer = document.getElementById(`doctor-photo-${index}`);
+        
+        // 5. Validate image dimensions (async check)
         try {
-            const API_BASE = window.API_BASE_URL || '';
-            // Request Cloudinary signature from serverless API (use relative path when API_BASE is empty)
-            const sigUrl = API_BASE ? API_BASE + '/api/cloudinary_signature.php' : 'api/cloudinary_signature.php';
-            const sigRes = await fetch(sigUrl);
-            if (!sigRes.ok) {
-                const txt = await sigRes.text();
-                throw new Error('Signature request failed: ' + sigRes.status + ' ' + txt);
-            }
-            const sig = await sigRes.json();
-            if (sig.error) throw new Error(sig.error || 'Signature error');
-
-            const uploadForm = new FormData();
-            uploadForm.append('file', file);
-            uploadForm.append('api_key', sig.api_key);
-            uploadForm.append('timestamp', sig.timestamp);
-            uploadForm.append('signature', sig.signature);
-            uploadForm.append('folder', sig.folder);
-
-            const cloudRes = await fetch(sig.upload_url, {
-                method: 'POST',
-                body: uploadForm
-            });
-            if (!cloudRes.ok) {
-                const txt = await cloudRes.text();
-                console.error('Cloudinary responded with error', cloudRes.status, txt);
-                showToast('Upload failed', 'error');
+            const dimensions = await getImageDimensions(file);
+            
+            // Minimum dimensions (100x100 px for a profile photo)
+            if (dimensions.width < 100 || dimensions.height < 100) {
+                showToast('Image too small. Minimum size is 100x100 pixels.', 'error');
+                input.value = '';
                 return;
             }
-            const cloudData = await cloudRes.json();
-
-            if (cloudData.secure_url) {
-                doctors[index].photoUrl = cloudData.secure_url;
-                renderDoctors();
-                showToast('Photo uploaded successfully', 'success');
-            } else {
-                console.error('Cloudinary upload failed', cloudData);
-                showToast('Upload failed', 'error');
+            
+            // Maximum dimensions (5000x5000 px to prevent huge files)
+            if (dimensions.width > 5000 || dimensions.height > 5000) {
+                showToast('Image too large. Maximum dimensions: 5000x5000 pixels.', 'error');
+                input.value = '';
+                return;
             }
         } catch (error) {
-            console.error('Upload error:', error);
-            showToast('Upload failed', 'error');
+            console.error('Error validating image dimensions:', error);
+            showToast('Could not read image. Please try a different file.', 'error');
+            input.value = '';
+            return;
         }
+        
+        // Store the file locally for later upload (deferred to form submission)
+        doctorPhotos[index] = file;
+        
+        // Create local preview using FileReader
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            // Store preview URL in doctors array for display
+            doctors[index].photoPreview = e.target.result;
+            renderDoctors();
+            showToast('Photo added! It will be uploaded when you submit the form.', 'success');
+        };
+        reader.onerror = () => {
+            showToast('Could not preview image. Please try again.', 'error');
+        };
+        reader.readAsDataURL(file);
     };
 
     // ===== Treatments Management =====
@@ -992,6 +1046,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // 1. Upload Images
             let uploadedUrls = [];
             if (selectedFiles.length > 0) {
+                showUploadLoader(`Uploading ${selectedFiles.length} photo${selectedFiles.length > 1 ? 's' : ''}...`);
+                
                 // Upload each file directly to Cloudinary using signed uploads
                 const API_BASE = window.API_BASE_URL || '';
                 const sigUrl = API_BASE ? API_BASE + '/api/cloudinary_signature.php' : 'api/cloudinary_signature.php';
@@ -1031,6 +1087,59 @@ document.addEventListener('DOMContentLoaded', () => {
                         console.error('Upload failed:', res);
                     }
                 });
+                
+                hideUploadLoader();
+            }
+
+            // 1b. Upload Doctor Photos (if any pending)
+            const pendingDoctorPhotos = Object.keys(doctorPhotos);
+            if (pendingDoctorPhotos.length > 0) {
+                showUploadLoader(`Uploading ${pendingDoctorPhotos.length} doctor photo${pendingDoctorPhotos.length > 1 ? 's' : ''}...`);
+                
+                const API_BASE = window.API_BASE_URL || '';
+                const sigUrl = API_BASE ? API_BASE + '/api/cloudinary_signature.php' : 'api/cloudinary_signature.php';
+                const sigRes = await fetch(sigUrl);
+                if (!sigRes.ok) {
+                    throw new Error('Signature request failed for doctor photos');
+                }
+                const sig = await sigRes.json();
+                if (sig.error) throw new Error(sig.error || 'Signature error');
+
+                // Upload each doctor photo
+                for (const indexStr of pendingDoctorPhotos) {
+                    const index = parseInt(indexStr);
+                    const file = doctorPhotos[index];
+                    
+                    const uploadForm = new FormData();
+                    uploadForm.append('file', file);
+                    uploadForm.append('api_key', sig.api_key);
+                    uploadForm.append('timestamp', sig.timestamp);
+                    uploadForm.append('signature', sig.signature);
+                    uploadForm.append('folder', sig.folder);
+
+                    try {
+                        const cloudRes = await fetch(sig.upload_url, {
+                            method: 'POST',
+                            body: uploadForm
+                        });
+                        const cloudData = await cloudRes.json();
+                        
+                        if (cloudData.secure_url) {
+                            // Update doctor with uploaded URL
+                            doctors[index].photoUrl = cloudData.secure_url;
+                            delete doctors[index].photoPreview; // Remove preview
+                        } else {
+                            console.error('Doctor photo upload failed:', cloudData);
+                        }
+                    } catch (uploadErr) {
+                        console.error('Error uploading doctor photo:', uploadErr);
+                    }
+                }
+                
+                // Clear the pending photos map
+                Object.keys(doctorPhotos).forEach(key => delete doctorPhotos[key]);
+                
+                hideUploadLoader();
             }
 
             // 2. Populate Hidden Inputs
@@ -1080,7 +1189,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             try {
-                const res = await fetch(API_BASE + '/api/submit.php', {
+                // Use relative path for local dev, full path for deployed API
+                const submitUrl = API_BASE ? API_BASE + '/api/submit.php' : 'api/submit.php';
+                const res = await fetch(submitUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -1136,5 +1247,27 @@ document.addEventListener('DOMContentLoaded', () => {
         toast.textContent = message;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
+    }
+
+    function showUploadLoader(message = 'Uploading...') {
+        const overlay = document.createElement('div');
+        overlay.className = 'upload-loader-overlay';
+        overlay.id = 'upload-loader-overlay';
+        overlay.innerHTML = `
+            <div class="upload-loader-content">
+                <div class="upload-loader-spinner"></div>
+                <div class="upload-loader-text">${message}</div>
+                <div class="upload-loader-subtext">Please wait...</div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+    }
+
+    function hideUploadLoader() {
+        const overlay = document.getElementById('upload-loader-overlay');
+        if (overlay) {
+            overlay.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => overlay.remove(), 300);
+        }
     }
 });

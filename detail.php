@@ -2,6 +2,12 @@
 // detail.php - View detailed hospital profile
 session_start();
 
+// ===== Authentication Check =====
+if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+    header('Location: login.php');
+    exit;
+}
+
 // Load DB config
 require_once 'db_config.php';
 $pgConn = get_db_connection();
