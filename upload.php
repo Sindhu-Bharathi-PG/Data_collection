@@ -1,27 +1,14 @@
 <?php
-// upload.php - Cloudinary image upload handler
+// upload.php - Stub endpoint (kept for backward compatibility)
+// Actual uploads are handled client-side directly to Cloudinary using signed uploads
 header('Content-Type: application/json');
 
-$response = ['success' => false, 'url' => '', 'error' => ''];
+$response = ['success' => false, 'url' => '', 'error' => 'This endpoint is deprecated. Use client-side Cloudinary uploads.'];
+echo json_encode($response);
+exit;
 
-// Load Cloudinary SDK
-require 'vendor/autoload.php';
-
-use Cloudinary\Cloudinary;
-use Cloudinary\Configuration\Configuration;
-
-// Configure Cloudinary
-$config = Configuration::instance([
-    'cloud' => [
-        'cloud_name' => getenv('CLOUDINARY_CLOUD_NAME'),
-        'api_key' => getenv('CLOUDINARY_API_KEY'),
-        'api_secret' => getenv('CLOUDINARY_API_SECRET'),
-    ],
-]);
-
-$cloudinary = new Cloudinary($config);
-
-// Handle file upload
+// Original local upload code (deprecated)
+/*
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['file'])) {
     $file = $_FILES['file'];
     
