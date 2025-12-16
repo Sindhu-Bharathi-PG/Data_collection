@@ -1,9 +1,11 @@
 <?php
 // detail.php - View detailed hospital profile
-session_start();
+// detail.php - View detailed hospital profile
+define('AUTH_COOKIE_NAME', 'hospital_admin_auth');
+define('AUTH_SECRET', 'pondi_meditour_secret_2024');
 
 // ===== Authentication Check =====
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+if (!isset($_COOKIE[AUTH_COOKIE_NAME]) || $_COOKIE[AUTH_COOKIE_NAME] !== hash_hmac('sha256', 'admin', AUTH_SECRET)) {
     header('Location: /api/login.php');
     exit;
 }

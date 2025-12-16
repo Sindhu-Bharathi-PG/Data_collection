@@ -1,6 +1,11 @@
 <?php
 // api/login.php - Admin Login Page
-session_start();
+// api/login.php - Admin Login Page
+// No session_start necessary for simple cookie auth, but good practice if expanding
+// session_start(); 
+
+define('AUTH_COOKIE_NAME', 'hospital_admin_auth');
+define('AUTH_SECRET', 'pondi_meditour_secret_2024'); // Change in production
 
 // Default credentials (in production, use database/env vars with hashed passwords)
 define('ADMIN_USERNAME', 'admin');
@@ -9,7 +14,8 @@ define('ADMIN_PASSWORD', 'hospital@2024'); // Change this in production!
 $error = '';
 
 // Check if already logged in
-if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true) {
+// Check if already logged in
+if (isset($_COOKIE[AUTH_COOKIE_NAME]) && $_COOKIE[AUTH_COOKIE_NAME] === hash_hmac('sha256', 'admin', AUTH_SECRET)) {
     header('Location: /api/admin.php');
     exit;
 }
@@ -20,9 +26,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     
     if ($username === ADMIN_USERNAME && $password === ADMIN_PASSWORD) {
-        $_SESSION['admin_logged_in'] = true;
-        $_SESSION['admin_username'] = $username;
-        $_SESSION['login_time'] = time();
+        $token = hash_hmac('sha256', 'admin', AUTH_SECRET);
+        // Set cookie for 24 hours, accessible on entire domain
+        setcookie(AUTH_COOKIE_NAME, $token, time() + 86400, '/', '', true, true);
+        
         header('Location: /api/admin.php');
         exit;
     } else {

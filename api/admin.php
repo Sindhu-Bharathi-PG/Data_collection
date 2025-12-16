@@ -1,9 +1,11 @@
 <?php
 // admin.php - Admin Dashboard for Hospital Profile Management
-session_start();
+// api/admin.php - Admin Dashboard for Hospital Profile Management
+define('AUTH_COOKIE_NAME', 'hospital_admin_auth');
+define('AUTH_SECRET', 'pondi_meditour_secret_2024');
 
 // ===== Authentication Check =====
-if (!isset($_SESSION['admin_logged_in']) || $_SESSION['admin_logged_in'] !== true) {
+if (!isset($_COOKIE[AUTH_COOKIE_NAME]) || $_COOKIE[AUTH_COOKIE_NAME] !== hash_hmac('sha256', 'admin', AUTH_SECRET)) {
     header('Location: /api/login.php');
     exit;
 }
@@ -107,7 +109,7 @@ $stats = pg_fetch_assoc($statsResult);
             </div>
             <div class="flex items-center gap-4">
                 <span class="text-gray-400 text-sm hidden sm:inline">
-                    Welcome, <span class="text-white font-medium"><?= htmlspecialchars($_SESSION['admin_username'] ?? 'Admin') ?></span>
+                    Welcome, <span class="text-white font-medium">Admin</span>
                 </span>
                 <a href="/index_fragment.html" class="btn px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
                     + New Submission
