@@ -2,13 +2,17 @@
     "functions": {
         "api/**/*.php": {
             "runtime": "vercel-php@0.6.0"
+        },
+        "*.php": {
+            "runtime": "vercel-php@0.6.0"
         }
     },
-    "env": {
-        "DB_HOST": "",
-        "DB_PORT": "5432",
-        "DB_NAME": "",
-        "DB_USER": "",
-        "DB_PASSWORD": ""
-    }
+    "routes": [
+        { "src": "/login.php", "dest": "/login.php" },
+        { "src": "/logout.php", "dest": "/logout.php" },
+        { "src": "/admin.php", "dest": "/admin.php" },
+        { "src": "/detail.php", "dest": "/detail.php" },
+        { "src": "/submit.php", "dest": "/submit.php" },
+        { "src": "/api/(.*)", "dest": "/api/$1" }
+    ]
 }
